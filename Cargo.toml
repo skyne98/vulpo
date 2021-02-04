@@ -17,6 +17,8 @@ log = "0.4.14"
 futures = "0.3.12"
 bytemuck = { version = "1.5.0", features = [ "derive" ] }
 anyhow = "1.0.38"
+ultraviolet = "0.7.5"
+rayon = "1.5.0"
 
 [build-dependencies]
 anyhow = "1.0"

@@ -1,12 +1,12 @@
 use crate::backend::resource::texture::Texture;
 use anyhow::Result;
 
-pub struct CoreSwapChain {
+pub struct SwapChain {
     pub wgpu: wgpu::SwapChain,
     pub descriptor: wgpu::SwapChainDescriptor,
 }
 
-impl CoreSwapChain {
+impl SwapChain {
     pub fn new(
         device: &wgpu::Device,
         surface: &wgpu::Surface,

@@ -1,4 +1,4 @@
-// shader.frag
+// sprite.frag
 #version 450
 
 // Changed

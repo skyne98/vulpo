@@ -1,4 +1,4 @@
-use crate::backend::resource::CoreResource;
+use crate::backend::resource::Resource;
 use anyhow::*;
 use image::GenericImageView;
 use wgpu::{BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry};
@@ -29,12 +29,16 @@ impl Sampler {
     }
 }
 
-impl<'a> CoreResource<'a> for Sampler {
-    fn entry(&self, index: u32) -> (BindGroupLayoutEntry, BindGroupEntry) {
+impl<'a> Resource<'a> for Sampler {
+    fn entry(
+        &self,
+        index: u32,
+        visibility: wgpu::ShaderStage,
+    ) -> (BindGroupLayoutEntry, BindGroupEntry) {
         (
             wgpu::BindGroupLayoutEntry {
                 binding: index,
-                visibility: wgpu::ShaderStage::FRAGMENT,
+                visibility,
                 ty: wgpu::BindingType::Sampler { comparison: false },
                 count: None,
             },

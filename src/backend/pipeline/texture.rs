@@ -1,23 +1,50 @@
 use crate::backend::pipeline::Pipeline;
-use crate::backend::shader::CoreShaderSet;
+use crate::backend::shader::ShaderSet;
 use crate::backend::vertex::Vertex;
-use wgpu::{PipelineLayout, RenderPipeline};
+use wgpu::util::DeviceExt;
+use wgpu::{Buffer, PipelineLayout, RenderPipeline};
+
+// TEXTURE RANGE: (0.0) - (1.0)
+// FRAME RANGE: (-1.0) - (1.0)
+
+const VERTICES: &[Vertex] = &[
+    Vertex {
+        position: [-1.0, 1.0, 1.0],
+        tex_coords: [0.0, 0.0],
+    }, // A
+    Vertex {
+        position: [-1.0, -1.0, 1.0],
+        tex_coords: [0.0, 1.0],
+    }, // B
+    Vertex {
+        position: [1.0, -1.0, 1.0],
+        tex_coords: [1.0, 1.0],
+    }, // C
+    Vertex {
+        position: [1.0, 1.0, 1.0],
+        tex_coords: [1.0, 0.0],
+    }, // D
+];
+
+const INDICES: &[u16] = &[0, 1, 3, 3, 1, 2];
 
 pub struct TexturePipeline {
-    shaders: CoreShaderSet,
+    shaders: ShaderSet,
     texture_format: wgpu::TextureFormat,
     layout: Option<wgpu::PipelineLayout>,
     pipeline: Option<wgpu::RenderPipeline>,
+    vertex_buffer: Option<wgpu::Buffer>,
+    index_buffer: Option<wgpu::Buffer>,
 }
 
 impl TexturePipeline {
     pub fn new(device: &wgpu::Device, texture_format: wgpu::TextureFormat) -> Self {
         // Shaders
         let vs_module =
-            device.create_shader_module(wgpu::include_spirv!("../../shaders/shader.vert.spv"));
+            device.create_shader_module(wgpu::include_spirv!("../../shaders/texture.vert.spv"));
         let fs_module =
-            device.create_shader_module(wgpu::include_spirv!("../../shaders/shader.frag.spv"));
-        let shader_set = CoreShaderSet {
+            device.create_shader_module(wgpu::include_spirv!("../../shaders/texture.frag.spv"));
+        let shader_set = ShaderSet {
             vertex: vs_module,
             fragment: fs_module,
         };
@@ -27,17 +54,19 @@ impl TexturePipeline {
             texture_format,
             layout: None,
             pipeline: None,
+            vertex_buffer: None,
+            index_buffer: None,
         }
     }
 }
 
-impl<'a> Pipeline<'a> for TexturePipeline {
-    fn initialize(&mut self, device: &wgpu::Device, bind_group_layout: &wgpu::BindGroupLayout) {
+impl Pipeline for TexturePipeline {
+    fn initialize(&mut self, device: &wgpu::Device, bind_group_layouts: &[&wgpu::BindGroupLayout]) {
         // Pipeline
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Texture Pipeline Layout"),
-                bind_group_layouts: &[&bind_group_layout],
+                bind_group_layouts,
                 push_constant_ranges: &[],
             });
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -76,15 +105,38 @@ impl<'a> Pipeline<'a> for TexturePipeline {
             alpha_to_coverage_enabled: false,
         });
 
+        // Vertex buffer
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Vertex Buffer"),
+            contents: bytemuck::cast_slice(VERTICES),
+            usage: wgpu::BufferUsage::VERTEX,
+        });
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(INDICES),
+            usage: wgpu::BufferUsage::INDEX,
+        });
+
         self.layout = Some(render_pipeline_layout);
         self.pipeline = Some(render_pipeline);
+        self.vertex_buffer = Some(vertex_buffer);
+        self.index_buffer = Some(index_buffer);
     }
 
+    fn resize(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, width: u32, height: u32) {}
     fn layout(&self) -> &Option<PipelineLayout> {
         &self.layout
     }
-
     fn pipeline(&self) -> &Option<RenderPipeline> {
         &self.pipeline
+    }
+    fn vertex_buffer(&self) -> &Option<wgpu::Buffer> {
+        &self.vertex_buffer
+    }
+    fn index_buffer(&self) -> &Option<wgpu::Buffer> {
+        &self.index_buffer
+    }
+    fn index_number(&self) -> u32 {
+        INDICES.len() as u32
     }
 }

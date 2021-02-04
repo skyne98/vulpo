@@ -1,4 +1,4 @@
-use crate::backend::resource::CoreResource;
+use crate::backend::resource::Resource;
 use anyhow::*;
 use image::GenericImageView;
 use wgpu::{BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry};
@@ -90,8 +90,12 @@ impl Texture {
     }
 }
 
-impl<'a> CoreResource<'a> for Texture {
-    fn entry(&self, index: u32) -> (BindGroupLayoutEntry, BindGroupEntry) {
+impl<'a> Resource<'a> for Texture {
+    fn entry(
+        &self,
+        index: u32,
+        visibility: wgpu::ShaderStage,
+    ) -> (BindGroupLayoutEntry, BindGroupEntry) {
         let view = match &self.source {
             TextureSource::Texture { texture, ref view } => view,
             TextureSource::SwapChainTexture { ref texture } => &texture.view,
@@ -100,7 +104,7 @@ impl<'a> CoreResource<'a> for Texture {
         (
             wgpu::BindGroupLayoutEntry {
                 binding: index,
-                visibility: wgpu::ShaderStage::FRAGMENT,
+                visibility,
                 ty: wgpu::BindingType::SampledTexture {
                     multisampled: false,
                     dimension: wgpu::TextureViewDimension::D2,
