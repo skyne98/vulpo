@@ -1,8 +1,8 @@
 pub mod sprite;
 pub mod texture;
 
-use crate::backend::shader::ShaderSet;
-use crate::backend::vertex::Vertex;
+
+
 
 pub trait Pipeline {
     /// (Re-)initialize the pipeline. Usually you do it after changes in resources.

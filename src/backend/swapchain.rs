@@ -29,7 +29,7 @@ impl SwapChain {
         self.wgpu = device.create_swap_chain(surface, &self.descriptor);
     }
     pub fn get_current_frame(&mut self) -> Result<Texture, wgpu::SwapChainError> {
-        let mut frame = self.wgpu.get_current_frame()?.output;
+        let frame = self.wgpu.get_current_frame()?.output;
         Ok(Texture::from_swap_chain_texture(frame))
     }
 }

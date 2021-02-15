@@ -4,9 +4,8 @@ use crate::backend::resource::uniform::Uniform;
 use crate::backend::shader::ShaderSet;
 use crate::backend::sprite::Sprites;
 use crate::backend::vertex::Vertex;
-use futures::StreamExt;
 use wgpu::util::DeviceExt;
-use wgpu::{BindGroup, Buffer, MultisampleState, PipelineLayout, RenderPipeline};
+use wgpu::{BindGroup, PipelineLayout, RenderPipeline};
 
 // TEXTURE RANGE: (0.0) - (1.0)
 // FRAME RANGE: (-1.0) - (1.0)
@@ -204,7 +203,7 @@ impl Pipeline for SpritePipeline {
         self.bind_groups = Some(bind_groups);
     }
 
-    fn resize(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, width: u32, height: u32) {
+    fn resize(&mut self, _device: &wgpu::Device, queue: &wgpu::Queue, width: u32, height: u32) {
         if let Some(_) = self.vertex_buffer {
             // Update the vertex buffers
             let (vertices, indices) = self.vertices_indices();

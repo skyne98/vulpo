@@ -1,7 +1,7 @@
 use crate::backend::resource::Resource;
-use anyhow::*;
-use image::GenericImageView;
-use wgpu::{BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry};
+
+
+use wgpu::{BindGroupEntry, BindGroupLayoutEntry};
 
 pub struct Sampler {
     pub wgpu: wgpu::Sampler,

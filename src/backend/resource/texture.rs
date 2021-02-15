@@ -1,7 +1,7 @@
 use crate::backend::resource::Resource;
 use anyhow::*;
 use image::GenericImageView;
-use wgpu::{BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry};
+use wgpu::{BindGroupEntry, BindGroupLayoutEntry};
 
 pub enum TextureSource {
     Texture {
@@ -82,7 +82,7 @@ impl Texture {
 
     pub fn get_view(&self) -> &wgpu::TextureView {
         let view = match &self.source {
-            TextureSource::Texture { texture, ref view } => view,
+            TextureSource::Texture { texture: _, ref view } => view,
             TextureSource::SwapChainTexture { ref texture } => &texture.view,
         };
 
@@ -97,7 +97,7 @@ impl<'a> Resource<'a> for Texture {
         visibility: wgpu::ShaderStage,
     ) -> (BindGroupLayoutEntry, BindGroupEntry) {
         let view = match &self.source {
-            TextureSource::Texture { texture, ref view } => view,
+            TextureSource::Texture { texture: _, ref view } => view,
             TextureSource::SwapChainTexture { ref texture } => &texture.view,
         };
 

@@ -1,12 +1,9 @@
-use crate::backend::pipeline::texture::TexturePipeline;
 use crate::backend::pipeline::Pipeline;
-use crate::backend::resource::sampler::Sampler;
-use crate::backend::resource::{build_bind_group, texture};
+
 use crate::backend::swapchain::SwapChain;
-use crate::backend::vertex::Vertex;
+
 use anyhow::Result;
-use bytemuck::__core::marker::PhantomData;
-use wgpu::util::DeviceExt;
+
 use winit::event::WindowEvent;
 use winit::window::Window;
 
@@ -86,13 +83,16 @@ impl<P: Pipeline> Renderer<P> {
     pub fn resize(&mut self, width: u32, height: u32) {
         self.width = width;
         self.height = height;
-        self.swap_chain
-            .resize(&self.device, &self.surface, width, height);
-        self.pipeline
-            .resize(&self.device, &self.queue, width, height);
+
+        if width != 0 && height != 0 {
+            self.swap_chain
+                .resize(&self.device, &self.surface, width, height);
+            self.pipeline
+                .resize(&self.device, &self.queue, width, height);
+        }
     }
 
-    pub fn input(&mut self, event: &WindowEvent) -> bool {
+    pub fn input(&mut self, _event: &WindowEvent) -> bool {
         false
     }
 

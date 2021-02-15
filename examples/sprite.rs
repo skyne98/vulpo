@@ -6,7 +6,7 @@ use vulpo::backend::window::Window;
 
 fn main() {
     env_logger::init();
-    let vulpo_window = Window::new(
+    let _vulpo_window = Window::new(
         |device, queue| {
             // Texture
             let diffuse_bytes = include_bytes!("../assets/noise_90x90.png");
