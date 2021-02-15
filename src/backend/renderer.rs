@@ -15,9 +15,10 @@ pub struct Renderer<P: Pipeline> {
     device: wgpu::Device,
     queue: wgpu::Queue,
     swap_chain: SwapChain,
-    pub size: winit::dpi::PhysicalSize<u32>,
     pipeline: P,
-    bind_groups: Vec<wgpu::BindGroup>,
+
+    pub width: u32,
+    pub height: u32,
 }
 
 impl<P: Pipeline> Renderer<P> {
@@ -38,7 +39,7 @@ impl<P: Pipeline> Renderer<P> {
         let surface = unsafe { instance.create_surface(window) };
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::Default,
+                power_preference: wgpu::PowerPreference::HighPerformance,
                 compatible_surface: Some(&surface),
             })
             .await
@@ -47,9 +48,9 @@ impl<P: Pipeline> Renderer<P> {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
+                    label: Some("Main Device"),
                     features: wgpu::Features::empty(),
                     limits: wgpu::Limits::default(),
-                    shader_validation: true,
                 },
                 None,
             )
@@ -57,7 +58,7 @@ impl<P: Pipeline> Renderer<P> {
             .unwrap();
 
         let swap_descriptor = wgpu::SwapChainDescriptor {
-            usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+            usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
             format: wgpu::TextureFormat::Bgra8UnormSrgb,
             width: size.width,
             height: size.height,
@@ -65,32 +66,30 @@ impl<P: Pipeline> Renderer<P> {
         };
         let swap_chain = SwapChain::new(&device, &surface, swap_descriptor);
 
-        // Bind groups
-        let (bind_group_layouts, bind_groups): (Vec<_>, Vec<_>) =
-            bind_group_builder(&device, &queue).into_iter().unzip();
-
         // Pipeline
         let mut pipeline = pipeline_builder(&device, swap_chain.descriptor.format);
+        pipeline.initialize(&device, &queue, bind_group_builder);
         pipeline.resize(&device, &queue, size.width, size.height);
-        pipeline.initialize(&device, &bind_group_layouts.iter().collect::<Vec<_>>());
 
         Self {
             surface,
             device,
             queue,
             swap_chain,
-            size,
             pipeline,
-            bind_groups,
+
+            width: size.width,
+            height: size.height,
         }
     }
 
-    pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
-        self.size = new_size;
+    pub fn resize(&mut self, width: u32, height: u32) {
+        self.width = width;
+        self.height = height;
         self.swap_chain
-            .resize(&self.device, &self.surface, new_size.width, new_size.height);
+            .resize(&self.device, &self.surface, width, height);
         self.pipeline
-            .resize(&self.device, &self.queue, new_size.width, new_size.height);
+            .resize(&self.device, &self.queue, width, height);
     }
 
     pub fn input(&mut self, event: &WindowEvent) -> bool {
@@ -109,6 +108,7 @@ impl<P: Pipeline> Renderer<P> {
 
         {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
                 color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
                     attachment: frame.get_view(),
                     resolve_target: None,
@@ -130,11 +130,18 @@ impl<P: Pipeline> Renderer<P> {
             let number_of_indecies = self.pipeline.index_number();
 
             render_pass.set_pipeline(&self.pipeline.pipeline().as_ref().unwrap());
-            for (i, bind_group) in self.bind_groups.iter().enumerate() {
+            for (i, bind_group) in self.pipeline.groups().as_ref().unwrap().iter().enumerate() {
                 render_pass.set_bind_group(i as u32, bind_group, &[]);
             }
             render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-            render_pass.set_index_buffer(index_buffer.slice(..));
+            render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            /*
+            for i in 0..number_of_indecies / 6 {
+                let index = i * 6;
+                let vert_index = i * 4;
+                render_pass.draw_indexed(index..index + 6, vert_index as i32, 0..1);
+            }
+            */
             render_pass.draw_indexed(0..number_of_indecies, 0, 0..1);
         }
 

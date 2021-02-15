@@ -4,24 +4,33 @@ version = "0.1.0"
 authors = ["skyne98 <ahalahan@gmail.com>"]
 edition = "2018"
 
+[[bench]]
+name = "sprite"
+path = "benches/sprite.rs"
+harness = false
+
 [profile.release]
 lto = true
+debug = true
 
 [dependencies]
 winit = "0.24.0"
-wgpu = "0.6.2"
-image = "0.23.12"
+wgpu = "0.7.0"
+image = "0.23.13"
 cgmath = "0.18.0"
 env_logger = "0.8.2"
 log = "0.4.14"
 futures = "0.3.12"
 bytemuck = { version = "1.5.0", features = [ "derive" ] }
 anyhow = "1.0.38"
-ultraviolet = "0.7.5"
+ultraviolet = { version = "0.7.5", features = [ "bytemuck" ] }
 rayon = "1.5.0"
 
+[dev-dependencies]
+criterion = "0.3"
+
 [build-dependencies]
-anyhow = "1.0"
-fs_extra = "1.1"
-glob = "0.3"
-shaderc = "0.7"
+anyhow = "1.0.38"
+fs_extra = "1.2.0"
+glob = "0.3.0"
+shaderc = "0.7.1"

@@ -38,15 +38,20 @@ impl<'a, T: Debug + Copy + Clone + bytemuck::Pod + bytemuck::Zeroable> Resource<
             wgpu::BindGroupLayoutEntry {
                 binding: index,
                 visibility,
-                ty: wgpu::BindingType::UniformBuffer {
-                    dynamic: false,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
                     min_binding_size: None,
                 },
                 count: None,
             },
             wgpu::BindGroupEntry {
                 binding: index,
-                resource: wgpu::BindingResource::Buffer(self.wgpu.slice(..)),
+                resource: wgpu::BindingResource::Buffer {
+                    buffer: &self.wgpu,
+                    offset: 0,
+                    size: None,
+                },
             },
         )
     }

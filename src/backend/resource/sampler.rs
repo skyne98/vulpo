@@ -39,7 +39,10 @@ impl<'a> Resource<'a> for Sampler {
             wgpu::BindGroupLayoutEntry {
                 binding: index,
                 visibility,
-                ty: wgpu::BindingType::Sampler { comparison: false },
+                ty: wgpu::BindingType::Sampler {
+                    comparison: false,
+                    filtering: false,
+                },
                 count: None,
             },
             wgpu::BindGroupEntry {

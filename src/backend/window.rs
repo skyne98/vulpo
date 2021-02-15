@@ -44,10 +44,10 @@ impl Window {
                                 _ => {}
                             },
                             WindowEvent::Resized(physical_size) => {
-                                renderer.resize(*physical_size);
+                                renderer.resize(physical_size.width, physical_size.height);
                             }
                             WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                                renderer.resize(**new_inner_size);
+                                renderer.resize(new_inner_size.width, new_inner_size.height);
                             }
                             _ => {}
                         }
@@ -58,7 +58,9 @@ impl Window {
                     match renderer.render() {
                         Ok(_) => {}
                         // Recreate the swap_chain if lost
-                        Err(wgpu::SwapChainError::Lost) => renderer.resize(renderer.size),
+                        Err(wgpu::SwapChainError::Lost) => {
+                            renderer.resize(renderer.width, renderer.height)
+                        }
                         // The system is out of memory, we should probably quit
                         Err(wgpu::SwapChainError::OutOfMemory) => *control_flow = ControlFlow::Exit,
                         // All other errors (Outdated, Timeout) should be resolved by the next frame

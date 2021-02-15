@@ -105,10 +105,10 @@ impl<'a> Resource<'a> for Texture {
             wgpu::BindGroupLayoutEntry {
                 binding: index,
                 visibility,
-                ty: wgpu::BindingType::SampledTexture {
+                ty: wgpu::BindingType::Texture {
                     multisampled: false,
-                    dimension: wgpu::TextureViewDimension::D2,
-                    component_type: wgpu::TextureComponentType::Uint,
+                    sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                    view_dimension: wgpu::TextureViewDimension::D2,
                 },
                 count: None,
             },
