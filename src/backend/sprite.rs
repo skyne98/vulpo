@@ -1,4 +1,5 @@
 use anyhow::Result;
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use std::{
     sync::mpsc::{channel, Receiver, Sender},
     thread::JoinHandle,
@@ -66,7 +67,7 @@ pub struct Sprites {
     rotation_mat: Vec<ultraviolet::Mat3>,
     translation_mat: Vec<ultraviolet::Mat3>,
 
-    threads: Vec<SpriteThread>,
+    threads: usize,
 }
 
 impl Sprites {
@@ -88,7 +89,7 @@ impl Sprites {
             rotation_mat: vec![],
             translation_mat: vec![],
 
-            threads: vec![SpriteThread::new()],
+            threads: 16,
         }
     }
 
@@ -221,232 +222,113 @@ impl Sprites {
         texture_width: u32,
         texture_height: u32,
     ) -> (Vec<Vertex>, Vec<u16>) {
-        let mut result_vertices = vec![];
-        let mut result_indices = vec![];
-        let main_thread = self.threads.first().unwrap();
-
-        let thread_count = self.threads.len();
+        let thread_count = self.threads;
         let chunk_size = self.length / thread_count;
         let leftover = self.length - (chunk_size * thread_count);
 
-        /* First process leftovers */
-        if leftover > 0 {
-            let leftover_length = leftover;
-            let leftover_source_positions = Vec::from(&self.source_position[0..leftover_length]);
-            let leftover_source_size = Vec::from(&self.source_size[0..leftover_length]);
-            let leftover_scale_mat = Vec::from(&self.scale_mat[0..leftover_length]);
-            let leftover_origin_translation_mat =
-                Vec::from(&self.origin_translation_mat[0..leftover_length]);
-            let leftover_rotation_mat = Vec::from(&self.rotation_mat[0..leftover_length]);
-            let leftover_translation = Vec::from(&self.translation_mat[0..leftover_length]);
-            main_thread
-                .send(Some((
-                    0,
-                    leftover_length,
-                    texture_width,
-                    texture_height,
-                    leftover_source_positions,
-                    leftover_source_size,
-                    leftover_scale_mat,
-                    leftover_origin_translation_mat,
-                    leftover_rotation_mat,
-                    leftover_translation,
-                )))
-                .unwrap();
-            let (vertices, indices) = main_thread.recv().unwrap();
-            result_vertices.extend_from_slice(&vertices[..]);
-            result_indices.extend_from_slice(&indices[..]);
-        }
+        let mut result_vertices = vec![];
+        let mut result_indices = vec![];
 
-        /* Process all other chunks */
-        if chunk_size > 0 {
-            for thread_index in 0..thread_count {
-                let thread = &self.threads[thread_index];
-                let thread_slice_start = leftover + chunk_size * thread_index;
-                let thread_slice_range = thread_slice_start..thread_slice_start + chunk_size;
-                let thread_source_positions =
-                    Vec::from(&self.source_position[thread_slice_range.clone()]);
-                let thread_source_size = Vec::from(&self.source_size[thread_slice_range.clone()]);
-                let thread_scale_mat = Vec::from(&self.scale_mat[thread_slice_range.clone()]);
+        (0..thread_count)
+            .into_par_iter()
+            .map(|index| {
+                let thread_slice_start = if index == 0 {
+                    0
+                } else {
+                    leftover + chunk_size * index
+                };
+                let thread_slice_range = if index == 0 {
+                    thread_slice_start..thread_slice_start + chunk_size + leftover
+                } else {
+                    thread_slice_start..thread_slice_start + chunk_size
+                };
+                let thread_source_positions = &self.source_position[thread_slice_range.clone()];
+                let thread_source_size = &self.source_size[thread_slice_range.clone()];
+                let thread_scale_mat = &self.scale_mat[thread_slice_range.clone()];
                 let thread_origin_translation_mat =
-                    Vec::from(&self.origin_translation_mat[thread_slice_range.clone()]);
-                let thread_rotation_mat = Vec::from(&self.rotation_mat[thread_slice_range.clone()]);
-                let thread_translation =
-                    Vec::from(&self.translation_mat[thread_slice_range.clone()]);
-                thread
-                    .send(Some((
-                        thread_slice_start,
-                        thread_slice_range.len(),
-                        texture_width,
-                        texture_height,
-                        thread_source_positions,
-                        thread_source_size,
-                        thread_scale_mat,
-                        thread_origin_translation_mat,
-                        thread_rotation_mat,
-                        thread_translation,
-                    )))
-                    .unwrap();
-            }
-            for thread_index in 0..thread_count {
-                let thread = &self.threads[thread_index];
-                let (vertices, indices) = thread.recv().unwrap();
-                result_vertices.extend_from_slice(&vertices[..]);
-                result_indices.extend_from_slice(&indices[..]);
-            }
-        }
+                    &self.origin_translation_mat[thread_slice_range.clone()];
+                let thread_rotation_mat = &self.rotation_mat[thread_slice_range.clone()];
+                let thread_translation = &self.translation_mat[thread_slice_range.clone()];
+
+                let range = 0..thread_slice_range.len();
+                let mut result_vertices = vec![];
+                let mut result_indices = vec![];
+
+                for local_index in range {
+                    let source_position = thread_source_positions.get(local_index).unwrap().clone();
+                    let source_size = thread_source_size.get(local_index).unwrap().clone();
+
+                    let scale_mat = thread_scale_mat.get(local_index).unwrap().clone();
+                    let origin_translation_mat = thread_origin_translation_mat
+                        .get(local_index)
+                        .unwrap()
+                        .clone();
+                    let rotation_mat = thread_rotation_mat.get(local_index).unwrap().clone();
+                    let translation_mat = thread_translation.get(local_index).unwrap().clone();
+
+                    // Relative texture coordinates
+                    /*
+                    let _src_relative_min_x: f32 = source_position.x / texture_width as f32;
+                    let _src_relative_min_y: f32 = source_position.y / texture_height as f32;
+                    let _src_relative_max_x: f32 =
+                        source_position.x + source_size.x / texture_width as f32;
+                    let _src_relative_max_y: f32 =
+                        source_position.y + source_size.y / texture_height as f32;
+                    */
+
+                    // Transform matrix
+                    let transformation =
+                        translation_mat * rotation_mat * origin_translation_mat * scale_mat;
+
+                    // Calculate the position vectors
+                    let vec_a = transformation * BASE_VEC_A;
+                    let vec_b = transformation * BASE_VEC_B;
+                    let vec_c = transformation * BASE_VEC_C;
+                    let vec_d = transformation * BASE_VEC_D;
+
+                    // Create the UV arrays
+                    let uv_a = BASE_UV_A;
+                    let uv_b = BASE_UV_B;
+                    let uv_c = BASE_UV_C;
+                    let uv_d = BASE_UV_D;
+
+                    // Calculate the indices
+                    let indices = BASELINE_INDICES
+                        .iter()
+                        .map(|i| *i + (4 * (thread_slice_start as u16 + local_index as u16)))
+                        .collect::<Vec<_>>();
+
+                    // Generate the vertices
+                    let vertices = vec![
+                        Vertex {
+                            position: [vec_a.x, vec_a.y, vec_a.z],
+                            tex_coords: [uv_a.x, uv_a.y],
+                        }, // A
+                        Vertex {
+                            position: [vec_b.x, vec_b.y, vec_b.z],
+                            tex_coords: [uv_b.x, uv_b.y],
+                        }, // B
+                        Vertex {
+                            position: [vec_c.x, vec_c.y, vec_c.z],
+                            tex_coords: [uv_c.x, uv_c.y],
+                        }, // C
+                        Vertex {
+                            position: [vec_d.x, vec_d.y, vec_d.z],
+                            tex_coords: [uv_d.x, uv_d.y],
+                        }, // D
+                    ];
+
+                    result_vertices.extend_from_slice(&vertices[..]);
+                    result_indices.extend_from_slice(&indices[..]);
+                }
+
+                (result_vertices, result_indices)
+            })
+            .unzip_into_vecs(&mut result_vertices, &mut result_indices);
+
+        let result_vertices = result_vertices.into_iter().flatten().collect();
+        let result_indices = result_indices.into_iter().flatten().collect();
 
         (result_vertices, result_indices)
-    }
-}
-
-type SpriteInputData = Option<(
-    usize,
-    usize,
-    u32,
-    u32,
-    Vec<ultraviolet::Vec2>,
-    Vec<ultraviolet::Vec2>,
-    Vec<ultraviolet::Mat3>,
-    Vec<ultraviolet::Mat3>,
-    Vec<ultraviolet::Mat3>,
-    Vec<ultraviolet::Mat3>,
-)>;
-type SpriteOutputData = (Vec<Vertex>, Vec<u16>);
-
-pub struct SpriteThread {
-    handle: JoinHandle<()>,
-    receiver: Receiver<SpriteOutputData>,
-    sender: Sender<SpriteInputData>,
-}
-
-impl SpriteThread {
-    pub fn new() -> Self {
-        let (from_thread_sender, from_thread_receiver): (
-            Sender<SpriteOutputData>,
-            Receiver<SpriteOutputData>,
-        ) = channel();
-        let (to_thread_sender, to_thread_receiver): (
-            Sender<SpriteInputData>,
-            Receiver<SpriteInputData>,
-        ) = channel();
-
-        let handle = std::thread::spawn(move || {
-            let from_thread_sender = from_thread_sender;
-            let to_thread_receiver = to_thread_receiver;
-
-            loop {
-                if let Some((
-                    starting_index,
-                    length,
-                    texture_width,
-                    texture_height,
-                    source_position,
-                    source_size,
-                    scale_mat,
-                    origin_translation_mat,
-                    rotation_mat,
-                    translation_mat,
-                )) = to_thread_receiver.recv().unwrap()
-                {
-                    let range = 0..length;
-                    let mut result_vertices = vec![];
-                    let mut result_indices = vec![];
-
-                    for local_index in range {
-                        let source_position = source_position.get(local_index).unwrap().clone();
-                        let source_size = source_size.get(local_index).unwrap().clone();
-
-                        let scale_mat = scale_mat.get(local_index).unwrap().clone();
-                        let origin_translation_mat =
-                            origin_translation_mat.get(local_index).unwrap().clone();
-                        let rotation_mat = rotation_mat.get(local_index).unwrap().clone();
-                        let translation_mat = translation_mat.get(local_index).unwrap().clone();
-
-                        // Relative texture coordinates
-                        /*
-                        let _src_relative_min_x: f32 = source_position.x / texture_width as f32;
-                        let _src_relative_min_y: f32 = source_position.y / texture_height as f32;
-                        let _src_relative_max_x: f32 =
-                            source_position.x + source_size.x / texture_width as f32;
-                        let _src_relative_max_y: f32 =
-                            source_position.y + source_size.y / texture_height as f32;
-                        */
-
-                        // Transform matrix
-                        let transformation =
-                            translation_mat * rotation_mat * origin_translation_mat * scale_mat;
-
-                        // Calculate the position vectors
-                        let vec_a = transformation * BASE_VEC_A;
-                        let vec_b = transformation * BASE_VEC_B;
-                        let vec_c = transformation * BASE_VEC_C;
-                        let vec_d = transformation * BASE_VEC_D;
-
-                        // Create the UV arrays
-                        let uv_a = BASE_UV_A;
-                        let uv_b = BASE_UV_B;
-                        let uv_c = BASE_UV_C;
-                        let uv_d = BASE_UV_D;
-
-                        // Calculate the indices
-                        let indices = BASELINE_INDICES
-                            .iter()
-                            .map(|i| *i + (4 * (starting_index as u16 + local_index as u16)))
-                            .collect::<Vec<_>>();
-
-                        // Generate the vertices
-                        let vertices = vec![
-                            Vertex {
-                                position: [vec_a.x, vec_a.y, vec_a.z],
-                                tex_coords: [uv_a.x, uv_a.y],
-                            }, // A
-                            Vertex {
-                                position: [vec_b.x, vec_b.y, vec_b.z],
-                                tex_coords: [uv_b.x, uv_b.y],
-                            }, // B
-                            Vertex {
-                                position: [vec_c.x, vec_c.y, vec_c.z],
-                                tex_coords: [uv_c.x, uv_c.y],
-                            }, // C
-                            Vertex {
-                                position: [vec_d.x, vec_d.y, vec_d.z],
-                                tex_coords: [uv_d.x, uv_d.y],
-                            }, // D
-                        ];
-
-                        result_vertices.extend_from_slice(&vertices[..]);
-                        result_indices.extend_from_slice(&indices[..]);
-                    }
-
-                    from_thread_sender
-                        .send((result_vertices, result_indices))
-                        .unwrap();
-                } else {
-                    break;
-                }
-            }
-        });
-
-        Self {
-            handle: handle,
-            receiver: from_thread_receiver,
-            sender: to_thread_sender,
-        }
-    }
-
-    pub fn send(&self, input: SpriteInputData) -> Result<()> {
-        self.sender.send(input)?;
-        Ok(())
-    }
-
-    pub fn recv(&self) -> Result<SpriteOutputData> {
-        Ok(self.receiver.recv()?)
-    }
-}
-
-impl Drop for SpriteThread {
-    fn drop(&mut self) {
-        self.send(None).unwrap();
     }
 }
